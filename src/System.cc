@@ -21,7 +21,6 @@
 
 
 #include "System.h"
-#include "Converter.h"
 #include <thread>
 #include <pangolin/pangolin.h>
 #include <iomanip>
@@ -469,6 +468,157 @@ void System::SaveTrajectoryKITTI(const string &filename)
     }
     f.close();
     cout << endl << "trajectory saved!" << endl;
+}
+
+void System::SaveMap(const string &filename)
+{
+    ofstream f;
+    f.open(filename.c_str());
+    f << fixed;
+
+    std::vector<MapPoint*> points = mpMap->GetAllMapPoints();
+    for (MapPoint* point : points)
+    {
+        cv::Mat pos = point->GetWorldPos();
+        f << setprecision(9)
+          << pos.at<float>(0,0)
+          << " " << pos.at<float>(1,0)
+          << " " << pos.at<float>(2,0) << endl;
+    }
+    f.close();
+    cout << endl << "map saved!" << endl;
+}
+
+void System::LoadMapMonocular(const string &map_filename,
+                              const string &keyframes_filename,
+                              const string &image_directory)
+{
+    ORBextractor* orbExtractor = mpTracker->GetORBExtractor();
+    cv::Mat K = mpTracker->GetK();
+    cv::Mat distCoef = mpTracker->GetDistCoef();
+    const float bf = mpTracker->Getbf();
+    const float ThDepth = mpTracker->GetThDepth();
+
+    ifstream fkeyframe;
+    fkeyframe.open(keyframes_filename);
+    std::string delim = " ";
+    if (fkeyframe.is_open())
+    {
+      string line;
+      while(getline(fkeyframe, line))
+      {
+        size_t pos = line.find(delim);
+        const double time_stamp = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double x = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double y = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double z = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double qx = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double qy = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double qz = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double w = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        Eigen::Vector3d position(x, y, z);
+        g2o::Quaterniond quat(w, qx, qy, qz);
+        g2o::SE3Quat se3(quat, position);
+        cv::Mat pose = Converter::toCvMat(se3);
+
+        std::string file_path = image_directory +
+                                "/" + std::to_string(time_stamp) +
+                                ".png";
+        cv::Mat img = cv::imread(file_path);
+        cv::Mat grey;
+        cv::cvtColor(img, grey, cv::COLOR_RGB2GRAY);
+
+        Frame frame(grey,
+                    time_stamp,
+                    orbExtractor,
+                    mpVocabulary,
+                    K,
+                    distCoef,
+                    bf,
+                    ThDepth);
+        KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase);
+        kf->SetPose(pose);
+        kf->ComputeBoW();
+        mpMap->AddKeyFrame(kf);
+      }
+    }
+
+    std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
+
+    ifstream fmap;
+    fmap.open(map_filename);
+    if (fmap.is_open())
+    {
+      string line;
+      while(getline(fmap, line))
+      {
+        size_t pos = line.find(delim);
+        const double x = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double y = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        pos = line.find(delim);
+        const double z = std::stod(line.substr(0, pos));
+        line.erase(0, pos + delim.length());
+
+        double pos_vec[4] = {x, y, z, 1.0};
+        cv::Mat Ph(4, 1, CV_32F, pos_vec);
+
+        vector<KeyFrame*> inFrames;
+        for (size_t i = 0; i < kfrms.size(); i++) {
+          KeyFrame* kfrm = kfrms[i];
+          cv::Mat kfrm_Twc = kfrm->GetPoseInverse();
+          cv::Mat Pch = kfrm_Twc*Ph;
+          cv::Mat Pc = Pch(cv::Rect(0,0,2,0)).clone();
+          const float PcZ = Pc.at<float>(2);
+          if (PcZ < 0) {
+              continue;
+          }
+          cv::Mat U = K*Pc/PcZ;
+          const float Ux = U.at<float>(0);
+          const float Uy = U.at<float>(1);
+          if (Ux < Frame::mnMaxX && Ux > Frame::mnMinX
+              && Uy < Frame::mnMaxY && Uy > Frame::mnMinY) {
+            inFrames.push_back(kfrm);  
+          }
+        }
+        cv::Mat P = Ph(cv::Rect(0,0,2,0)).clone();
+        MapPoint* mp = new MapPoint(P, inFrames[0], mpMap);
+        mpMap->AddMapPoint(mp);
+        for (size_t i = 0; i < inFrames.size(); i++) {
+            KeyFrame* kfrm = inFrames[i];
+            const size_t mpts = kfrm->GetMapPointMatches().size();
+            inFrames[i]->AddMapPoint(mp, mpts);
+            mp->AddObservation(kfrm, i);
+        }
+      }
+    }
 }
 
 int System::GetTrackingState()

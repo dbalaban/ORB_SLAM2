@@ -983,6 +983,7 @@ bool Tracking::NeedNewKeyFrame()
     if(mpLocalMapper->isStopped() || mpLocalMapper->stopRequested())
         return false;
 
+    return true;
     const int nKFs = mpMap->KeyFramesInMap();
 
     // Do not insert keyframes if not enough frames have passed from last relocalisation
@@ -1587,6 +1588,30 @@ void Tracking::InformOnlyTracking(const bool &flag)
     mbOnlyTracking = flag;
 }
 
+ORBextractor* Tracking::GetORBExtractor()
+{
+    // TODO: return different extractors for mono / stereo
+    return mpORBextractorLeft;
+}
 
+cv::Mat Tracking::GetK()
+{
+    return mK;
+}
+
+cv::Mat Tracking::GetDistCoef()
+{
+    return mDistCoef;
+}
+
+float Tracking::Getbf()
+{
+    return mbf;
+}
+
+float Tracking::GetThDepth()
+{
+    return mThDepth;
+}
 
 } //namespace ORB_SLAM
