@@ -499,6 +499,7 @@ void System::LoadMapMonocular(const string &map_filename,
     const float bf = mpTracker->Getbf();
     const float ThDepth = mpTracker->GetThDepth();
 
+    std::cout << "reading keyframes\n";
     ifstream fkeyframe;
     fkeyframe.open(keyframes_filename);
     std::string delim = " ";
@@ -559,6 +560,7 @@ void System::LoadMapMonocular(const string &map_filename,
                     distCoef,
                     bf,
                     ThDepth);
+        frame.SetPose(pose);
         KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase);
         kf->SetPose(pose);
         kf->ComputeBoW();
@@ -568,6 +570,7 @@ void System::LoadMapMonocular(const string &map_filename,
 
     std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
 
+    std::cout << "reading map points\n";
     ifstream fmap;
     fmap.open(map_filename);
     if (fmap.is_open())
@@ -576,18 +579,18 @@ void System::LoadMapMonocular(const string &map_filename,
       while(getline(fmap, line))
       {
         size_t pos = line.find(delim);
-        const double x = std::stod(line.substr(0, pos));
+        const float x = std::stof(line.substr(0, pos));
         line.erase(0, pos + delim.length());
 
         pos = line.find(delim);
-        const double y = std::stod(line.substr(0, pos));
+        const float y = std::stof(line.substr(0, pos));
         line.erase(0, pos + delim.length());
 
         pos = line.find(delim);
-        const double z = std::stod(line.substr(0, pos));
+        const float z = std::stof(line.substr(0, pos));
         line.erase(0, pos + delim.length());
 
-        double pos_vec[4] = {x, y, z, 1.0};
+        float pos_vec[4] = {x, y, z, 1.0};
         cv::Mat Ph(4, 1, CV_32F, pos_vec);
 
         vector<KeyFrame*> inFrames;
@@ -595,7 +598,7 @@ void System::LoadMapMonocular(const string &map_filename,
           KeyFrame* kfrm = kfrms[i];
           cv::Mat kfrm_Twc = kfrm->GetPoseInverse();
           cv::Mat Pch = kfrm_Twc*Ph;
-          cv::Mat Pc = Pch(cv::Rect(0,0,2,0)).clone();
+          cv::Mat Pc = Pch(cv::Rect(0,0,1,3)).clone();
           const float PcZ = Pc.at<float>(2);
           if (PcZ < 0) {
               continue;
@@ -608,7 +611,7 @@ void System::LoadMapMonocular(const string &map_filename,
             inFrames.push_back(kfrm);  
           }
         }
-        cv::Mat P = Ph(cv::Rect(0,0,2,0)).clone();
+        cv::Mat P = Ph(cv::Rect(0,0,1,3)).clone();
         MapPoint* mp = new MapPoint(P, inFrames[0], mpMap);
         mpMap->AddMapPoint(mp);
         for (size_t i = 0; i < inFrames.size(); i++) {
