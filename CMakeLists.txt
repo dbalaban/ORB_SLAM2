@@ -9,6 +9,7 @@ MESSAGE("Build type: " ${CMAKE_BUILD_TYPE})
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall  -O3 -march=native ")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3 -march=native")
+set(CMAKE_TOOLCHAIN_FILE="/home/david/lib/vcpkg/scripts/buildsystems/vcpkg.cmake")
 
 # Check C++11 or C++0x support
 include(CheckCXXCompilerFlag)
@@ -27,6 +28,8 @@ else()
 endif()
 
 LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
+
+find_package(jsoncpp CONFIG REQUIRED)
 
 find_package(OpenCV 3.0 QUIET)
 if(NOT OpenCV_FOUND)
@@ -68,6 +71,7 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
+src/JSONwriter.cc
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -76,6 +80,7 @@ ${EIGEN3_LIBS}
 ${Pangolin_LIBRARIES}
 ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
+jsoncpp
 )
 
 # Build examples
@@ -102,6 +107,10 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular)
 add_executable(mono_tum
 Examples/Monocular/mono_tum.cc)
 target_link_libraries(mono_tum ${PROJECT_NAME})
+
+add_executable(test_loading
+Examples/Test/test_loading.cpp)
+target_link_libraries(test_loading ${PROJECT_NAME})
 
 add_executable(mono_kitti
 Examples/Monocular/mono_kitti.cc)

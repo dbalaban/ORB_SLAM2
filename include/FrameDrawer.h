@@ -24,6 +24,7 @@
 #include "Tracking.h"
 #include "MapPoint.h"
 #include "Map.h"
+#include "KeyFrame.h"
 
 #include<opencv2/core/core.hpp>
 #include<opencv2/features2d/features2d.hpp>
@@ -44,6 +45,9 @@ public:
 
     // Update info from the last processed frame.
     void Update(Tracking *pTracker);
+
+    // Update info from keyframe
+    void Update(const KeyFrame* kf);
 
     // Draw last processed frame.
     cv::Mat DrawFrame();

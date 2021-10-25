@@ -470,20 +470,17 @@ void System::SaveTrajectoryKITTI(const string &filename)
     cout << endl << "trajectory saved!" << endl;
 }
 
-void System::SaveMap(const string &filename)
+void System::SaveMapandKeyFrames(const string &filename)
 {
-    ofstream f;
-    f.open(filename.c_str());
-    f << fixed;
+    JSONwriter writer;
 
     std::vector<MapPoint*> points = mpMap->GetAllMapPoints();
     for (MapPoint* point : points)
     {
-        cv::Mat pos = point->GetWorldPos();
-        f << setprecision(9)
-          << pos.at<float>(0,0)
-          << " " << pos.at<float>(1,0)
-          << " " << pos.at<float>(2,0) << endl;
+        if (point->isBad()) {
+            continue;
+        }
+        writer.AddMapPoint(*point);
     }
     f.close();
     cout << endl << "map saved!" << endl;
@@ -494,6 +491,7 @@ void System::LoadMapMonocular(const string &map_filename,
                               const string &image_directory)
 {
     ORBextractor* orbExtractor = mpTracker->GetORBExtractor();
+    ORBmatcher matcher;
     cv::Mat K = mpTracker->GetK();
     cv::Mat distCoef = mpTracker->GetDistCoef();
     const float bf = mpTracker->Getbf();
@@ -506,6 +504,7 @@ void System::LoadMapMonocular(const string &map_filename,
     if (fkeyframe.is_open())
     {
       string line;
+      KeyFrame* kf_last = NULL;
       while(getline(fkeyframe, line))
       {
         size_t pos = line.find(delim);
@@ -561,14 +560,19 @@ void System::LoadMapMonocular(const string &map_filename,
                     bf,
                     ThDepth);
         frame.SetPose(pose);
-        KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase);
+        KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase, 0, grey);
         kf->SetPose(pose);
         kf->ComputeBoW();
+        if (kf_last) {
+            kf_last->AddChild(kf);
+        }
+        kf_last = kf;
         mpMap->AddKeyFrame(kf);
       }
     }
 
     std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
+    cout << "first keyframe has " << kfrms[0]->mvpMapPoints.size() << " map points" << endl;
 
     std::cout << "reading map points\n";
     ifstream fmap;
@@ -594,6 +598,7 @@ void System::LoadMapMonocular(const string &map_filename,
         cv::Mat Ph(4, 1, CV_32F, pos_vec);
 
         vector<KeyFrame*> inFrames;
+        vector<size_t> frameIdx;
         for (size_t i = 0; i < kfrms.size(); i++) {
           KeyFrame* kfrm = kfrms[i];
           cv::Mat kfrm_Twc = kfrm->GetPoseInverse();
@@ -606,22 +611,50 @@ void System::LoadMapMonocular(const string &map_filename,
           cv::Mat U = K*Pc/PcZ;
           const float Ux = U.at<float>(0);
           const float Uy = U.at<float>(1);
-          if (Ux < Frame::mnMaxX && Ux > Frame::mnMinX
-              && Uy < Frame::mnMaxY && Uy > Frame::mnMinY) {
-            inFrames.push_back(kfrm);  
+          vector<size_t> features = kfrm->GetFeaturesInArea(Ux, Uy, 1.0);
+          if (features.size() > 1) {
+              cout << features.size() << " matches made in vicinity of projection\n";
           }
+          if (Ux < Frame::mnMaxX && Ux > Frame::mnMinX
+              && Uy < Frame::mnMaxY && Uy > Frame::mnMinY
+              && features.size() > 0) {
+            inFrames.push_back(kfrm);
+            frameIdx.push_back(features[0]);
+          }
+        }
+        if (inFrames.size() == 0) {
+            cout << "point was found in " << inFrames.size() << " frames\n";
+            cout << "line: " << line << endl;
+            continue;
         }
         cv::Mat P = Ph(cv::Rect(0,0,1,3)).clone();
         MapPoint* mp = new MapPoint(P, inFrames[0], mpMap);
         mpMap->AddMapPoint(mp);
         for (size_t i = 0; i < inFrames.size(); i++) {
             KeyFrame* kfrm = inFrames[i];
-            const size_t mpts = kfrm->GetMapPointMatches().size();
-            inFrames[i]->AddMapPoint(mp, mpts);
-            mp->AddObservation(kfrm, i);
+            const size_t mpts = frameIdx[i];
+            kfrm->AddMapPoint(mp, mpts);
+            if (kfrm == kfrms[0]) {
+                cout << "added point with address " << mp << " to keyframe address " << kfrm << " at position " << mpts << endl;
+                cout << "first keyframe with address " << kfrms[0] << " has map point with address" << kfrms[0]->mvpMapPoints[mpts] << endl;
+            }
+            mp->AddObservation(kfrm, frameIdx[i]);
         }
       }
     }
+    fmap.close();
+    size_t mps = kfrms[0]->mvpMapPoints.size();
+    cout << "first keyframe has " << mps << " map points" << endl;
+    if (mps > 0) {
+        cout << "example pointer to map point: " << kfrms[0]->mvpMapPoints[0] << endl;
+    }
+    cout << "finished loading map\n";
+}
+
+void System::drawKeyFrame(const size_t kfIdx)
+{
+    std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
+    mpFrameDrawer->Update(kfrms[kfIdx]);
 }
 
 int System::GetTrackingState()

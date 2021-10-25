@@ -43,7 +43,8 @@ class KeyFrameDatabase;
 class KeyFrame
 {
 public:
-    KeyFrame(Frame &F, Map* pMap, KeyFrameDatabase* pKFDB);
+    KeyFrame(Frame &F, Map* pMap, KeyFrameDatabase* pKFDB, size_t id);
+    KeyFrame(Frame &F, Map* pMap, KeyFrameDatabase* pKFDB, size_t id, cv::Mat& gray);
 
     // Pose functions
     void SetPose(const cv::Mat &Tcw);
@@ -120,6 +121,8 @@ public:
     // The following variables are accesed from only 1 thread or never change (no mutex needed).
 public:
 
+    const size_t id_;
+
     static long unsigned int nNextId;
     long unsigned int mnId;
     const long unsigned int mnFrameId;
@@ -188,7 +191,10 @@ public:
     const int mnMaxY;
     const cv::Mat mK;
 
+    // MapPoints associated to keypoints
+    std::vector<MapPoint*> mvpMapPoints;
 
+    const cv::Mat imGray;
     // The following variables need to be accessed trough a mutex to be thread safe.
 protected:
 
@@ -198,9 +204,6 @@ protected:
     cv::Mat Ow;
 
     cv::Mat Cw; // Stereo middel point. Only for visualization
-
-    // MapPoints associated to keypoints
-    std::vector<MapPoint*> mvpMapPoints;
 
     // BoW
     KeyFrameDatabase* mpKeyFrameDB;

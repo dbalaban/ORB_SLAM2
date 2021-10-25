@@ -164,6 +164,34 @@ void FrameDrawer::DrawTextInfo(cv::Mat &im, int nState, cv::Mat &imText)
 
 }
 
+void FrameDrawer::Update(const KeyFrame* kf)
+{
+    unique_lock<mutex> lock(mMutex);
+    kf->imGray.copyTo(mIm);
+    mvCurrentKeys=kf->mvKeys;
+    N = mvCurrentKeys.size();
+    cout << "current keys: " << N << endl;
+    cout << "number of mappoints in view: " << kf->mvpMapPoints.size() << endl;
+    mvbVO = vector<bool>(N,false);
+    mvbMap = vector<bool>(N,false);
+    mbOnlyTracking = true;
+
+    for(int i=0;i<N;i++)
+    {
+        MapPoint* pMP = kf->mvpMapPoints[i];
+        if(pMP)
+        {
+            if(pMP->Observations()>0)
+                mvbMap[i]=true;
+            else
+                mvbVO[i]=true;
+        } else {
+            cout << "non valid pointer " << pMP << endl;
+        }
+    }
+    mState=static_cast<int>(Tracking::OK);
+}
+
 void FrameDrawer::Update(Tracking *pTracker)
 {
     unique_lock<mutex> lock(mMutex);

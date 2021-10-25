@@ -36,6 +36,8 @@
 #include "ORBVocabulary.h"
 #include "Viewer.h"
 #include "Converter.h"
+#include "ORBmatcher.h"
+#include "JSONwriter.h"
 
 namespace ORB_SLAM2
 {
@@ -114,10 +116,12 @@ public:
     void SaveTrajectoryKITTI(const string &filename);
 
     // TODO: Save/Load functions
-    void SaveMap(const string &filename);
+    void SaveMapandKeyFrames(const string &filename);
     void LoadMapMonocular(const string &map_filename,
                           const string &keyframe_filename,
                           const string &image_directory);
+
+    void drawKeyFrame(const size_t kfIdx);
 
     // Information from most recent processed frame
     // You can call this right after TrackMonocular (or stereo or RGBD)

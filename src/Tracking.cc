@@ -46,7 +46,7 @@ namespace ORB_SLAM2
 Tracking::Tracking(System *pSys, ORBVocabulary* pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap, KeyFrameDatabase* pKFDB, const string &strSettingPath, const int sensor):
     mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
     mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer*>(NULL)), mpSystem(pSys), mpViewer(NULL),
-    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0)
+    mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0), keyframe_id_counter_(0)
 {
     // Load camera parameters from settings file
 
@@ -514,7 +514,8 @@ void Tracking::StereoInitialization()
         mCurrentFrame.SetPose(cv::Mat::eye(4,4,CV_32F));
 
         // Create KeyFrame
-        KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
+        keyframe_id_counter_++;
+        KeyFrame* pKFini = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB,keyframe_id_counter_);
 
         // Insert KeyFrame in the map
         mpMap->AddKeyFrame(pKFini);
@@ -637,8 +638,10 @@ void Tracking::MonocularInitialization()
 void Tracking::CreateInitialMapMonocular()
 {
     // Create KeyFrames
-    KeyFrame* pKFini = new KeyFrame(mInitialFrame,mpMap,mpKeyFrameDB);
-    KeyFrame* pKFcur = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
+    keyframe_id_counter_++;
+    KeyFrame* pKFini = new KeyFrame(mInitialFrame,mpMap,mpKeyFrameDB,keyframe_id_counter_);
+    keyframe_id_counter_++;
+    KeyFrame* pKFcur = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB,keyframe_id_counter_);
 
 
     pKFini->ComputeBoW();
@@ -1066,7 +1069,8 @@ void Tracking::CreateNewKeyFrame()
     if(!mpLocalMapper->SetNotStop(true))
         return;
 
-    KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB);
+    keyframe_id_counter_++;
+    KeyFrame* pKF = new KeyFrame(mCurrentFrame,mpMap,mpKeyFrameDB,keyframe_id_counter_);
 
     mpReferenceKF = pKF;
     mCurrentFrame.mpReferenceKF = pKF;
