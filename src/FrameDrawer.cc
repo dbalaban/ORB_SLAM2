@@ -186,7 +186,7 @@ void FrameDrawer::Update(const KeyFrame* kf)
             else
                 mvbVO[i]=true;
         } else {
-            cout << "non valid pointer " << pMP << endl;
+            cout << "non valid pointer " << pMP << " at index " << i << endl;
         }
     }
     mState=static_cast<int>(Tracking::OK);

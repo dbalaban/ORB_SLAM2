@@ -192,6 +192,8 @@ protected:
     cv::Mat mDistCoef;
     float mbf;
 
+    size_t keyframe_id_counter_;
+
     //New KeyFrame rules (according to fps)
     int mMinFrames;
     int mMaxFrames;

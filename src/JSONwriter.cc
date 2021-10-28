@@ -19,8 +19,10 @@ void JSONwriter::AddMapPoint(MapPoint& mp) {
   for (auto kf : keyframes) {
     size_t id = kf.first->id_;
     size_t idx = kf.second;
-    jframes["id"] = Json::Value((unsigned) id);
-    jframes["index"] = Json::Value((unsigned) idx);
+    Json::Value jframe;
+    jframe["id"] = Json::Value((unsigned) id);
+    jframe["index"] = Json::Value((unsigned) idx);
+    jframes.append(jframe);
   }
   jmp["keyframes"] = jframes;
 

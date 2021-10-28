@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 
     // Save camera trajectory
     SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
-    SLAM.SaveMap("map.txt");
+    SLAM.SaveMapandKeyFrames("keyframe_map.json");
 
     return 0;
 }

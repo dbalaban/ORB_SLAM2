@@ -473,6 +473,7 @@ void System::SaveTrajectoryKITTI(const string &filename)
 void System::SaveMapandKeyFrames(const string &filename)
 {
     JSONwriter writer;
+    std::cout << "declared writer\n";
 
     std::vector<MapPoint*> points = mpMap->GetAllMapPoints();
     for (MapPoint* point : points)
@@ -482,65 +483,56 @@ void System::SaveMapandKeyFrames(const string &filename)
         }
         writer.AddMapPoint(*point);
     }
-    f.close();
-    cout << endl << "map saved!" << endl;
+
+    vector<KeyFrame*> vpKFs = mpMap->GetAllKeyFrames();
+    sort(vpKFs.begin(),vpKFs.end(),KeyFrame::lId);
+
+    for(size_t i=0; i<vpKFs.size(); i++) {
+        KeyFrame* pKF = vpKFs[i];
+        if(pKF->isBad()) {
+            continue;
+        }
+        writer.AddKeyFrame(*pKF);
+    }
+
+    writer.WriteToFile(filename);
 }
 
 void System::LoadMapMonocular(const string &map_filename,
-                              const string &keyframes_filename,
                               const string &image_directory)
 {
+    Json::Value root;
+    Json::Reader reader;
+    std::ifstream fstream(map_filename, std::ifstream::binary);
+    bool parsingSuccessful = reader.parse(fstream, root, false);
+    if (!parsingSuccessful) {
+        std::cout  << reader.getFormatedErrorMessages() << "\n";
+        return;
+    }
+
+    std::map<size_t, KeyFrame*> kf_map;
+    KeyFrame* kf_last = NULL;
     ORBextractor* orbExtractor = mpTracker->GetORBExtractor();
-    ORBmatcher matcher;
     cv::Mat K = mpTracker->GetK();
     cv::Mat distCoef = mpTracker->GetDistCoef();
     const float bf = mpTracker->Getbf();
     const float ThDepth = mpTracker->GetThDepth();
 
     std::cout << "reading keyframes\n";
-    ifstream fkeyframe;
-    fkeyframe.open(keyframes_filename);
-    std::string delim = " ";
-    if (fkeyframe.is_open())
-    {
-      string line;
-      KeyFrame* kf_last = NULL;
-      while(getline(fkeyframe, line))
-      {
-        size_t pos = line.find(delim);
-        const double time_stamp = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const double x = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const double y = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const double z = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const double qx = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const double qy = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const double qz = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const double w = std::stod(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        Eigen::Vector3d position(x, y, z);
-        g2o::Quaterniond quat(w, qx, qy, qz);
+    const unsigned int nframes = root["keyframes"].size();
+    for (unsigned int i = 0; i < nframes; i++) {
+        Json::Value& jframe = root["keyframes"][i];
+        const size_t id = jframe["id"].asUInt64();
+        const double time_stamp = jframe["timestamp"].asDouble();
+        Json::Value& jpos = jframe["position"];
+        Eigen::Vector3d position(jpos[0].asDouble(),
+                                 jpos[1].asDouble(),
+                                 jpos[2].asDouble());
+        Json::Value& jquat = jframe["quaternion"];
+        g2o::Quaterniond quat(jquat[3].asDouble(),
+                              jquat[0].asDouble(),
+                              jquat[1].asDouble(),
+                              jquat[2].asDouble());
         g2o::SE3Quat se3(quat, position);
         cv::Mat pose = Converter::toCvMat(se3);
 
@@ -568,92 +560,44 @@ void System::LoadMapMonocular(const string &map_filename,
         }
         kf_last = kf;
         mpMap->AddKeyFrame(kf);
-      }
+        kf_map[id] = kf;
     }
-
-    std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
-    cout << "first keyframe has " << kfrms[0]->mvpMapPoints.size() << " map points" << endl;
-
+    std::cout << "finished loading " << nframes << " keyframes\n";
     std::cout << "reading map points\n";
-    ifstream fmap;
-    fmap.open(map_filename);
-    if (fmap.is_open())
-    {
-      string line;
-      while(getline(fmap, line))
-      {
-        size_t pos = line.find(delim);
-        const float x = std::stof(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
 
-        pos = line.find(delim);
-        const float y = std::stof(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        pos = line.find(delim);
-        const float z = std::stof(line.substr(0, pos));
-        line.erase(0, pos + delim.length());
-
-        float pos_vec[4] = {x, y, z, 1.0};
-        cv::Mat Ph(4, 1, CV_32F, pos_vec);
-
+    const unsigned int npoints = root["map points"].size();
+    for (unsigned int i = 0; i < npoints; i++) {
+        Json::Value& jpoint = root["map points"][i];
+        Json::Value& jpos = jpoint["position"];
+        float pos_vec[3] = {jpos[0].asFloat(),
+                            jpos[1].asFloat(),
+                            jpos[2].asFloat()};
+        cv::Mat P(3, 1, CV_32F, pos_vec);
+        const unsigned int nInFrames = jpoint["keyframes"].size();
         vector<KeyFrame*> inFrames;
         vector<size_t> frameIdx;
-        for (size_t i = 0; i < kfrms.size(); i++) {
-          KeyFrame* kfrm = kfrms[i];
-          cv::Mat kfrm_Twc = kfrm->GetPoseInverse();
-          cv::Mat Pch = kfrm_Twc*Ph;
-          cv::Mat Pc = Pch(cv::Rect(0,0,1,3)).clone();
-          const float PcZ = Pc.at<float>(2);
-          if (PcZ < 0) {
-              continue;
-          }
-          cv::Mat U = K*Pc/PcZ;
-          const float Ux = U.at<float>(0);
-          const float Uy = U.at<float>(1);
-          vector<size_t> features = kfrm->GetFeaturesInArea(Ux, Uy, 1.0);
-          if (features.size() > 1) {
-              cout << features.size() << " matches made in vicinity of projection\n";
-          }
-          if (Ux < Frame::mnMaxX && Ux > Frame::mnMinX
-              && Uy < Frame::mnMaxY && Uy > Frame::mnMinY
-              && features.size() > 0) {
-            inFrames.push_back(kfrm);
-            frameIdx.push_back(features[0]);
-          }
+        for (unsigned j = 0; j < nInFrames; j++) {
+            Json::Value& jinFrame = jpoint["keyframes"][j];
+            const size_t frame_id = jinFrame["id"].asUInt64();
+            const size_t frame_idx = jinFrame["index"].asUInt64();
+            inFrames.push_back(kf_map[frame_id]);
+            frameIdx.push_back(frame_idx);
         }
-        if (inFrames.size() == 0) {
-            cout << "point was found in " << inFrames.size() << " frames\n";
-            cout << "line: " << line << endl;
-            continue;
-        }
-        cv::Mat P = Ph(cv::Rect(0,0,1,3)).clone();
         MapPoint* mp = new MapPoint(P, inFrames[0], mpMap);
         mpMap->AddMapPoint(mp);
         for (size_t i = 0; i < inFrames.size(); i++) {
-            KeyFrame* kfrm = inFrames[i];
-            const size_t mpts = frameIdx[i];
-            kfrm->AddMapPoint(mp, mpts);
-            if (kfrm == kfrms[0]) {
-                cout << "added point with address " << mp << " to keyframe address " << kfrm << " at position " << mpts << endl;
-                cout << "first keyframe with address " << kfrms[0] << " has map point with address" << kfrms[0]->mvpMapPoints[mpts] << endl;
-            }
-            mp->AddObservation(kfrm, frameIdx[i]);
+            inFrames[i]->AddMapPoint(mp, frameIdx[i]);
+            mp->AddObservation(inFrames[i], frameIdx[i]);
         }
-      }
     }
-    fmap.close();
-    size_t mps = kfrms[0]->mvpMapPoints.size();
-    cout << "first keyframe has " << mps << " map points" << endl;
-    if (mps > 0) {
-        cout << "example pointer to map point: " << kfrms[0]->mvpMapPoints[0] << endl;
-    }
-    cout << "finished loading map\n";
+    std::cout << "finished loading " << npoints << " map points\n";
 }
 
 void System::drawKeyFrame(const size_t kfIdx)
 {
+    cout << "drawing key frame\n";
     std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
+    cout << "updating\n";
     mpFrameDrawer->Update(kfrms[kfIdx]);
 }
 

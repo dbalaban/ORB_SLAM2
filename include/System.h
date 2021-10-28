@@ -26,6 +26,9 @@
 #include<thread>
 #include<opencv2/core/core.hpp>
 
+#include <jsoncpp/json/json.h>
+#include <jsoncpp/json/value.h>
+
 #include "Tracking.h"
 #include "FrameDrawer.h"
 #include "MapDrawer.h"
@@ -118,7 +121,6 @@ public:
     // TODO: Save/Load functions
     void SaveMapandKeyFrames(const string &filename);
     void LoadMapMonocular(const string &map_filename,
-                          const string &keyframe_filename,
                           const string &image_directory);
 
     void drawKeyFrame(const size_t kfIdx);
