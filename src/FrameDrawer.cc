@@ -170,8 +170,6 @@ void FrameDrawer::Update(const KeyFrame* kf)
     kf->imGray.copyTo(mIm);
     mvCurrentKeys=kf->mvKeys;
     N = mvCurrentKeys.size();
-    cout << "current keys: " << N << endl;
-    cout << "number of mappoints in view: " << kf->mvpMapPoints.size() << endl;
     mvbVO = vector<bool>(N,false);
     mvbMap = vector<bool>(N,false);
     mbOnlyTracking = true;
@@ -186,7 +184,7 @@ void FrameDrawer::Update(const KeyFrame* kf)
             else
                 mvbVO[i]=true;
         } else {
-            cout << "non valid pointer " << pMP << " at index " << i << endl;
+            // cout << "non valid pointer " << pMP << " at index " << i << endl;
         }
     }
     mState=static_cast<int>(Tracking::OK);

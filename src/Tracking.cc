@@ -561,6 +561,13 @@ void Tracking::StereoInitialization()
     }
 }
 
+void Tracking::LoadInitialization()
+{
+    mState=LOST;
+    mLastProcessedState=LOST;
+    mbOnlyTracking=true;
+}
+
 void Tracking::MonocularInitialization()
 {
 
