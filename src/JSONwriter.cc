@@ -33,6 +33,8 @@ void JSONwriter::AddKeyFrame(KeyFrame& kf) {
   Json::Value jkf;
   Json::Value jquat(Json::arrayValue);
   Json::Value jpos(Json::arrayValue);
+  Json::Value jKeyPoints(Json::arrayValue);
+  Json::Value jChildren(Json::arrayValue);
 
   cv::Mat R = kf.GetRotation().t();
   std::vector<float> q = Converter::toQuaternion(R);
@@ -51,6 +53,31 @@ void JSONwriter::AddKeyFrame(KeyFrame& kf) {
   jpos.append(Json::Value(t.at<float>(1)));
   jpos.append(Json::Value(t.at<float>(2)));
   jkf["position"] = jpos;
+
+  std::vector<cv::KeyPoint>& mvKeys = kf.mvKeysUn;
+  for (cv::KeyPoint& kp : mvKeys) {
+    Json::Value jkp;
+    Json::Value jpt(Json::arrayValue);
+    jkp["angle"] = kp.angle;
+    jkp["class_id"] = kp.class_id;
+    jkp["octave"] = kp.octave;
+    jkp["response"] = kp.response;
+    jkp["size"] = kp.size;
+    jpt.append(Json::Value(kp.pt.x));
+    jpt.append(Json::Value(kp.pt.y));
+    jkp["pt"] = jpt;
+
+    jKeyPoints.append(jkp);
+  }
+  jkf["keypoints"] = jKeyPoints;
+
+  std::vector<KeyFrame*>& children = kf.GetChilds();
+  for (KeyFrame* kf : children) {
+    jChildren.append(JSon::Value(kf->id_));
+  }
+  jkf["children"] = jChildren;
+
+  jkf["parent"] = kf.GetParent()->id_;
 
   keyframes.append(jkf);
 }
