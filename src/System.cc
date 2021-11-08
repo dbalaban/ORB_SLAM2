@@ -256,7 +256,9 @@ cv::Mat System::TrackMonocular(const cv::Mat &im, const double &timestamp)
     }
     }
 
+    std::cout << "tracker grabbing image\n";
     cv::Mat Tcw = mpTracker->GrabImageMonocular(im,timestamp);
+    std::cout << "finished tracking image\n";
 
     unique_lock<mutex> lock2(mMutexState);
     mTrackingState = mpTracker->mState;
@@ -534,7 +536,7 @@ void System::LoadMapMonocular(const string &map_filename,
                               jquat[1].asDouble(),
                               jquat[2].asDouble());
         g2o::SE3Quat se3(quat, position);
-        cv::Mat pose = Converter::toCvMat(se3);
+        cv::Mat pose = Converter::toCvMat(se3.inverse());
 
         std::string file_path = image_directory +
                                 "/" + std::to_string(time_stamp) +
@@ -555,6 +557,7 @@ void System::LoadMapMonocular(const string &map_filename,
         KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase, 0, grey);
         kf->SetPose(pose);
         kf->ComputeBoW();
+        mpKeyFrameDatabase->add(kf);
         if (kf_last) {
             kf_last->AddChild(kf);
         }
@@ -591,13 +594,21 @@ void System::LoadMapMonocular(const string &map_filename,
         }
     }
     std::cout << "finished loading " << npoints << " map points\n";
+    mpTracker->LoadInitialization();
+    std::cout << "first keyframe first keypoint coords: " << kf_map[7]->mvKeysUn[0].pt << std::endl;
 }
 
 void System::drawKeyFrame(const size_t kfIdx)
 {
-    cout << "drawing key frame\n";
     std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
-    cout << "updating\n";
+    sort(kfrms.begin(),kfrms.end(),KeyFrame::lId);
+    // cout << "drawing key frame " << kfIdx+1 << " / " << kfrms.size() << "\n";
+    std::set<MapPoint*> kpts_set = kfrms[kfIdx]->GetMapPoints();
+    std::vector<MapPoint*> kpts_vec(kpts_set.begin(), kpts_set.end());
+    cv::Mat pose = kfrms[kfIdx]->GetPose();
+    // cout << "pose:\n" << pose << "\n";
+    mpMapDrawer->SetCurrentCameraPose(pose);
+    mpMap->SetReferenceMapPoints(kpts_vec);
     mpFrameDrawer->Update(kfrms[kfIdx]);
 }
 
