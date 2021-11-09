@@ -554,16 +554,44 @@ void System::LoadMapMonocular(const string &map_filename,
                     bf,
                     ThDepth);
         frame.SetPose(pose);
+        std::vector<cv::KeyPoint>& mvKeysUn = frame.mvKeysUn;
+        mvKeysUn.clear();
+        frame.mvKeys.clear();
+        const unsigned int npts = root["keypoints"].size();
+        for (unsigned int j = 0; j < npts; j++) {
+            Json::Value& jkpt = jframe["keypoints"][j];
+            cv::Point2f pt(jkpt["pt"][0].asFloat(),
+                           jkpt["pt"][1].asFloat());
+            cv::KeyPoint kpt(pt,
+                             jkpt["size"].asFloat(),
+                             jkpt["angle"].asFloat(),
+                             jkpt["response"].asFloat(),
+                             jkpt["octave"].asInt(),
+                             jkpt["class_id"].asInt());
+            mvKeysUn.push_back(kpt);
+            frame.mvKeys.push_back(kpt);
+        }
+
         KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase, 0, grey);
         kf->SetPose(pose);
         kf->ComputeBoW();
+
         mpKeyFrameDatabase->add(kf);
-        if (kf_last) {
-            kf_last->AddChild(kf);
-        }
         kf_last = kf;
         mpMap->AddKeyFrame(kf);
         kf_map[id] = kf;
+    }
+    for (unsigned int i = 0; i < nframes; i++) {
+        Json::Value& jframe = root["keyframes"][i];
+        KeyFrame* parent = kf_map[jframe["parent"].asUInt()];
+        KeyFrame* current = kf_map[jframe["id"].asUInt()];
+        current->ChangeParent(parent);
+        const unsigned int nkids = jframe["children"].size();
+        for (unsigned int j = 0; j < nkids; j++) {
+            Json::Value& jchild = jframe["children"][j];
+            KeyFrame* child = kf_map[jchild[j].asUInt()];
+            current->AddChild(child);
+        }
     }
     std::cout << "finished loading " << nframes << " keyframes\n";
     std::cout << "reading map points\n";

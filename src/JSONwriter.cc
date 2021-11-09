@@ -54,8 +54,8 @@ void JSONwriter::AddKeyFrame(KeyFrame& kf) {
   jpos.append(Json::Value(t.at<float>(2)));
   jkf["position"] = jpos;
 
-  std::vector<cv::KeyPoint>& mvKeys = kf.mvKeysUn;
-  for (cv::KeyPoint& kp : mvKeys) {
+  const std::vector<cv::KeyPoint>& mvKeys = kf.mvKeysUn;
+  for (const cv::KeyPoint& kp : mvKeys) {
     Json::Value jkp;
     Json::Value jpt(Json::arrayValue);
     jkp["angle"] = kp.angle;
@@ -71,13 +71,12 @@ void JSONwriter::AddKeyFrame(KeyFrame& kf) {
   }
   jkf["keypoints"] = jKeyPoints;
 
-  std::vector<KeyFrame*>& children = kf.GetChilds();
+  std::set<KeyFrame*> children = kf.GetChilds();
   for (KeyFrame* kf : children) {
-    jChildren.append(JSon::Value(kf->id_));
+    jChildren.append(Json::Value((unsigned int)kf->id_));
   }
   jkf["children"] = jChildren;
-
-  jkf["parent"] = kf.GetParent()->id_;
+  jkf["parent"] = Json::Value((unsigned int)kf.GetParent()->id_);
 
   keyframes.append(jkf);
 }
