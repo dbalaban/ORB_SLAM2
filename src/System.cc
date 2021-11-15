@@ -478,6 +478,7 @@ void System::SaveMapandKeyFrames(const string &filename)
     std::cout << "declared writer\n";
 
     std::vector<MapPoint*> points = mpMap->GetAllMapPoints();
+    std::cout << "writing " << points.size() << " map points\n";
     for (MapPoint* point : points)
     {
         if (point->isBad()) {
@@ -489,6 +490,7 @@ void System::SaveMapandKeyFrames(const string &filename)
     vector<KeyFrame*> vpKFs = mpMap->GetAllKeyFrames();
     sort(vpKFs.begin(),vpKFs.end(),KeyFrame::lId);
 
+    std::cout << "writing " << vpKFs.size() << " keyframes" << std::endl;
     for(size_t i=0; i<vpKFs.size(); i++) {
         KeyFrame* pKF = vpKFs[i];
         if(pKF->isBad()) {
@@ -497,6 +499,7 @@ void System::SaveMapandKeyFrames(const string &filename)
         writer.AddKeyFrame(*pKF);
     }
 
+    std::cout << "writing to file\n";
     writer.WriteToFile(filename);
 }
 
@@ -513,7 +516,6 @@ void System::LoadMapMonocular(const string &map_filename,
     }
 
     std::map<size_t, KeyFrame*> kf_map;
-    KeyFrame* kf_last = NULL;
     ORBextractor* orbExtractor = mpTracker->GetORBExtractor();
     cv::Mat K = mpTracker->GetK();
     cv::Mat distCoef = mpTracker->GetDistCoef();
@@ -554,10 +556,9 @@ void System::LoadMapMonocular(const string &map_filename,
                     bf,
                     ThDepth);
         frame.SetPose(pose);
-        std::vector<cv::KeyPoint>& mvKeysUn = frame.mvKeysUn;
-        mvKeysUn.clear();
+        frame.mvKeysUn.clear();
         frame.mvKeys.clear();
-        const unsigned int npts = root["keypoints"].size();
+        const unsigned int npts = jframe["keypoints"].size();
         for (unsigned int j = 0; j < npts; j++) {
             Json::Value& jkpt = jframe["keypoints"][j];
             cv::Point2f pt(jkpt["pt"][0].asFloat(),
@@ -568,28 +569,31 @@ void System::LoadMapMonocular(const string &map_filename,
                              jkpt["response"].asFloat(),
                              jkpt["octave"].asInt(),
                              jkpt["class_id"].asInt());
-            mvKeysUn.push_back(kpt);
+            frame.mvKeysUn.push_back(kpt);
             frame.mvKeys.push_back(kpt);
         }
-
+        frame.mvpMapPoints = vector<MapPoint*>(npts,static_cast<MapPoint*>(NULL));
+        
         KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase, 0, grey);
         kf->SetPose(pose);
         kf->ComputeBoW();
 
         mpKeyFrameDatabase->add(kf);
-        kf_last = kf;
         mpMap->AddKeyFrame(kf);
         kf_map[id] = kf;
     }
+    std::cout << "setting frame parents / children\n";
     for (unsigned int i = 0; i < nframes; i++) {
         Json::Value& jframe = root["keyframes"][i];
-        KeyFrame* parent = kf_map[jframe["parent"].asUInt()];
         KeyFrame* current = kf_map[jframe["id"].asUInt()];
-        current->ChangeParent(parent);
+        if (jframe.isMember("parent")) {
+            KeyFrame* parent = kf_map[jframe["parent"].asUInt()];
+            current->ChangeParent(parent);
+        }
         const unsigned int nkids = jframe["children"].size();
         for (unsigned int j = 0; j < nkids; j++) {
             Json::Value& jchild = jframe["children"][j];
-            KeyFrame* child = kf_map[jchild[j].asUInt()];
+            KeyFrame* child = kf_map[jchild.asUInt()];
             current->AddChild(child);
         }
     }
@@ -623,18 +627,15 @@ void System::LoadMapMonocular(const string &map_filename,
     }
     std::cout << "finished loading " << npoints << " map points\n";
     mpTracker->LoadInitialization();
-    std::cout << "first keyframe first keypoint coords: " << kf_map[7]->mvKeysUn[0].pt << std::endl;
 }
 
 void System::drawKeyFrame(const size_t kfIdx)
 {
     std::vector<KeyFrame*> kfrms = mpMap->GetAllKeyFrames();
     sort(kfrms.begin(),kfrms.end(),KeyFrame::lId);
-    // cout << "drawing key frame " << kfIdx+1 << " / " << kfrms.size() << "\n";
     std::set<MapPoint*> kpts_set = kfrms[kfIdx]->GetMapPoints();
     std::vector<MapPoint*> kpts_vec(kpts_set.begin(), kpts_set.end());
     cv::Mat pose = kfrms[kfIdx]->GetPose();
-    // cout << "pose:\n" << pose << "\n";
     mpMapDrawer->SetCurrentCameraPose(pose);
     mpMap->SetReferenceMapPoints(kpts_vec);
     mpFrameDrawer->Update(kfrms[kfIdx]);
