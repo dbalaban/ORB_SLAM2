@@ -559,6 +559,8 @@ void System::LoadMapMonocular(const string &map_filename,
         frame.mvKeysUn.clear();
         frame.mvKeys.clear();
         const unsigned int npts = jframe["keypoints"].size();
+        frame.mvpMapPoints = vector<MapPoint*>(npts,static_cast<MapPoint*>(NULL));
+        frame.mDescriptors = cv::Mat(npts, 32, CV_8U);
         for (unsigned int j = 0; j < npts; j++) {
             Json::Value& jkpt = jframe["keypoints"][j];
             cv::Point2f pt(jkpt["pt"][0].asFloat(),
@@ -571,8 +573,10 @@ void System::LoadMapMonocular(const string &map_filename,
                              jkpt["class_id"].asInt());
             frame.mvKeysUn.push_back(kpt);
             frame.mvKeys.push_back(kpt);
+            for (unsigned int k = 0; k < frame.mDescriptors.cols; ++k) {
+                frame.mDescriptors.at<uint8_t>(j,k) = jkpt["descriptor"][k].asUInt();
+            }
         }
-        frame.mvpMapPoints = vector<MapPoint*>(npts,static_cast<MapPoint*>(NULL));
         
         KeyFrame* kf = new KeyFrame(frame, mpMap, mpKeyFrameDatabase, 0, grey);
         kf->SetPose(pose);
@@ -615,12 +619,16 @@ void System::LoadMapMonocular(const string &map_filename,
             Json::Value& jinFrame = jpoint["keyframes"][j];
             const size_t frame_id = jinFrame["id"].asUInt64();
             const size_t frame_idx = jinFrame["index"].asUInt64();
-            inFrames.push_back(kf_map[frame_id]);
-            frameIdx.push_back(frame_idx);
+            if (kf_map[frame_id]) {
+                inFrames.push_back(kf_map[frame_id]);
+                frameIdx.push_back(frame_idx);
+            } else {
+                std::cout << "WARNING: frame id " << frame_id << " not found!\n";
+            }
         }
         MapPoint* mp = new MapPoint(P, inFrames[0], mpMap);
         mpMap->AddMapPoint(mp);
-        for (size_t i = 0; i < inFrames.size(); i++) {
+        for (size_t i = 1; i < inFrames.size(); i++) {
             inFrames[i]->AddMapPoint(mp, frameIdx[i]);
             mp->AddObservation(inFrames[i], frameIdx[i]);
         }
