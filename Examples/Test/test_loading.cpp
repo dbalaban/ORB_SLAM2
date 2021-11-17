@@ -59,10 +59,13 @@ int main(int argc, char **argv)
         usleep(1e4);
     }
 
-    cv::Mat im = cv::imread(sequence+"/"+vstrImageFilenames[191],CV_LOAD_IMAGE_UNCHANGED);
-    double tframe = vTimestamps[191];
-    cv::Mat track = SLAM.TrackMonocular(im, tframe);
-    std::cout << "first frame pose: " << track << std::endl;
+    for (size_t i = 0; i < vTimestamps.size(); i++) {
+      cv::Mat im = cv::imread(sequence+"/"+vstrImageFilenames[i],CV_LOAD_IMAGE_UNCHANGED);
+      double tframe = vTimestamps[i];
+      cv::Mat track = SLAM.TrackMonocular(im, tframe);
+      std::cout << "frame " << i+1 << " / " << vTimestamps.size() << " pose:\n" << track << std::endl;
+      usleep(1e5);
+    }
 
     while(true) {
         sleep(1);

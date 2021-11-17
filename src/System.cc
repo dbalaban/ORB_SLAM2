@@ -627,11 +627,13 @@ void System::LoadMapMonocular(const string &map_filename,
             }
         }
         MapPoint* mp = new MapPoint(P, inFrames[0], mpMap);
-        mpMap->AddMapPoint(mp);
         for (size_t i = 1; i < inFrames.size(); i++) {
             inFrames[i]->AddMapPoint(mp, frameIdx[i]);
             mp->AddObservation(inFrames[i], frameIdx[i]);
         }
+        mp->ComputeDistinctiveDescriptors();
+        mp->UpdateNormalAndDepth();
+        mpMap->AddMapPoint(mp);
     }
     std::cout << "finished loading " << npoints << " map points\n";
     mpTracker->LoadInitialization();
